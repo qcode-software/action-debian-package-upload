@@ -2,8 +2,9 @@ name: 'Upload Debian Package'
 inputs:
   private_key:
     description: 'Private key'
-    required: true
+    required: false
     type: string
+    default: ""
   repo_name:
     description: 'Repository Name'
     required: true
@@ -34,15 +35,26 @@ runs:
       run: |
         mkdir /home/runner/.ssh
         ssh-keyscan ${{ inputs.remote_host }} >> /home/runner/.ssh/known_hosts
-        echo "${{ inputs.private_key }}" > /home/runner/.ssh/github
-        chmod 600 /home/runner/.ssh/github
-        ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-        ssh-add /home/runner/.ssh/github
+        if [ -n "${{ inputs.private_key }}" ]; then
+          echo "Private key provided"
+          echo "${{ inputs.private_key }}" > /home/runner/.ssh/github
+          chmod 600 /home/runner/.ssh/github
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          ssh-add /home/runner/.ssh/github
+        fi
       shell: bash
     - name: Upload debian package
       env:
         SSH_AUTH_SOCK: /tmp/ssh_agent.sock
-      run: |
-        scp ${{ inputs.debian_package_file }} "${{ inputs.remote_user }}@${{ inputs.remote_host }}:${{ inputs.remote_dir }}/debs"	
-        ssh ${{ inputs.remote_user }}@${{ inputs.remote_host }} reprepro -b ${{ inputs.remote_dir }} includedeb bookworm ${{ inputs.remote_dir }}/debs/${{ inputs.debian_package_file }}
       shell: bash
+      run: |
+        scp \
+          ${{ inputs.debian_package_file }} \
+          "${{ inputs.remote_user }}@${{ inputs.remote_host }}:${{ inputs.remote_dir }}/debs"
+        ssh \
+          ${{ inputs.remote_user }}@${{ inputs.remote_host }} \
+          reprepro \
+          --basedir ${{ inputs.remote_dir }} \
+          includedeb \
+          bookworm \
+          ${{ inputs.remote_dir }}/debs/${{ inputs.debian_package_file }}
